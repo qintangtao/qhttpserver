@@ -28,6 +28,7 @@
 #include "http_parser.h"
 #include "qhttprequest.h"
 #include "qhttpresponse.h"
+#include "qsslserver.h"
 
 /// @cond nodoc
 
@@ -57,6 +58,17 @@ QHttpConnection::QHttpConnection(QTcpSocket *socket, QObject *parent)
     connect(socket, SIGNAL(readyRead()), this, SLOT(parseRequest()));
     connect(socket, SIGNAL(disconnected()), this, SLOT(socketDisconnected()));
     connect(socket, SIGNAL(bytesWritten(qint64)), this, SLOT(updateWriteCount(qint64)));
+
+    QVariant isSslSocket = m_socket->property("isSslSocket");
+    if (isSslSocket.isValid()) {
+        QSslSocket *sslsocket = (QSslSocket *)socket;
+        connect(sslsocket, SIGNAL(encrypted()), this, SLOT(encrypted()));
+        connect(sslsocket, SIGNAL(peerVerifyError(const QSslError &)), this, SLOT(peerVerifyError(const QSslError &)));
+        connect(sslsocket, SIGNAL(sslErrors(const QList<QSslError> &)), this, SLOT(sslErrors(const QList<QSslError> &)));
+        connect(sslsocket, SIGNAL(modeChanged(QSslSocket::SslMode )), this, SLOT(modeChanged(QSslSocket::SslMode )));
+        connect(sslsocket, SIGNAL(encryptedBytesWritten(qint64 )), this, SLOT(encryptedBytesWritten(qint64 )));
+        sslsocket->startServerEncryption();
+    }
 }
 
 QHttpConnection::~QHttpConnection()
@@ -69,6 +81,31 @@ QHttpConnection::~QHttpConnection()
 
     delete m_parserSettings;
     m_parserSettings = 0;
+}
+
+void QHttpConnection::encrypted()
+{
+    qDebug() << "encrypted";
+}
+
+void QHttpConnection::peerVerifyError(const QSslError &error)
+{
+    qDebug() << "peerVerifyError";
+}
+
+void QHttpConnection::sslErrors(const QList<QSslError> &errors)
+{
+    qDebug() << "sslErrors";
+}
+
+void QHttpConnection::modeChanged(QSslSocket::SslMode /*newMode*/)
+{
+    qDebug() << "modeChanged";
+}
+
+void QHttpConnection::encryptedBytesWritten(qint64 /*totalBytes*/)
+{
+    qDebug() << "encryptedBytesWritten";
 }
 
 void QHttpConnection::socketDisconnected()

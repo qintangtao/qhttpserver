@@ -13,8 +13,10 @@ HelloWorld::HelloWorld()
     connect(server, SIGNAL(newRequest(QHttpRequest*, QHttpResponse*)),
             this, SLOT(handleRequest(QHttpRequest*, QHttpResponse*)));
 
-    server->listen(QHostAddress::Any, 80);
-    qDebug() << "listen port 80";
+    server->listen(QHostAddress::Any, 443,
+                   "./key/server/server-cert.pem", "./key/server/server-key.pem");
+
+    qDebug() << "listen port 443";
 }
 
 void HelloWorld::handleRequest(QHttpRequest *req, QHttpResponse *resp)
@@ -27,7 +29,7 @@ void HelloWorld::handleRequest(QHttpRequest *req, QHttpResponse *resp)
     if (path == "/data/unknownSources")
         body = "{\"status\":\"0\",\"message\":\"ok\"}";
     else
-        body = "HelloWorld";
+        body = "Hello World";
     resp->setHeader("Content-Length", QString::number(body.size()));
     resp->writeHead(200);
     resp->end(body);

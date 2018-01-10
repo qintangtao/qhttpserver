@@ -47,6 +47,13 @@ Q_SIGNALS:
     void allBytesWritten();
 
 private Q_SLOTS:
+    // ssl
+    void encrypted();
+    void peerVerifyError(const QSslError &error);
+    void sslErrors(const QList<QSslError> &errors);
+    void modeChanged(QSslSocket::SslMode newMode);
+    void encryptedBytesWritten(qint64 totalBytes);
+    //
     void parseRequest();
     void responseDone();
     void socketDisconnected();

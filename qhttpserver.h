@@ -32,6 +32,8 @@
 
 #include <QObject>
 #include <QHostAddress>
+#include <QList>
+#include <QPair>
 
 /// Maps status codes to string reason phrases
 extern QHash<int, QString> STATUS_CODES;
@@ -63,6 +65,17 @@ public:
     QHttpServer(QObject *parent = 0);
 
     virtual ~QHttpServer();
+
+    bool listen(const QHostAddress &address,
+                quint16 port,
+                const QString &crtFilePath,
+                const QString &keyFilePath);
+
+    bool listen(const QHostAddress &address,
+                quint16 port,
+                const QString &crtFilePath,
+                const QString &keyFilePath,
+                const QList< QPair< QString, bool > > &caFileList);
 
     /// Start the server by bounding to the given @c address and @c port.
     /** @note This function returns immediately, it does not block.

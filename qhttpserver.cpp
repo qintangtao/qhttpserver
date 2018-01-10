@@ -26,8 +26,16 @@
 #include <QTcpSocket>
 #include <QVariant>
 #include <QDebug>
+#include <QFile>
+#include <QSslSocket>
+#include <QSsl>
+#include <QSslKey>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QIODevice>
 
 #include "qhttpconnection.h"
+#include "qsslserver.h"
 
 QHash<int, QString> STATUS_CODES;
 
@@ -92,6 +100,7 @@ QHttpServer::QHttpServer(QObject *parent) : QObject(parent), m_tcpServer(0)
 
 QHttpServer::~QHttpServer()
 {
+    close();
 }
 
 void QHttpServer::newConnection()
@@ -100,10 +109,74 @@ void QHttpServer::newConnection()
 
     while (m_tcpServer->hasPendingConnections()) {
         QHttpConnection *connection =
-            new QHttpConnection(m_tcpServer->nextPendingConnection(), this);
+            new QHttpConnection(m_tcpServer->nextPendingConnection(), isSslServer.isValid(), this);
         connect(connection, SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), this,
                 SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)));
     }
+}
+
+bool QHttpServer::listen(const QHostAddress &address,
+            quint16 port,
+            const QString &crtFilePath,
+            const QString &keyFilePath)
+{
+     QList< QPair< QString, bool > > caFileList;
+     listen(address, port, crtFilePath, keyFilePath, caFileList);
+}
+
+bool QHttpServer::listen(const QHostAddress &address,
+                         quint16 port,
+                         const QString &crtFilePath,
+                         const QString &keyFilePath,
+                         const QList< QPair< QString, bool > > &caFileList)
+{
+    QFile fileForCrt( crtFilePath );
+    if ( !fileForCrt.open( QIODevice::ReadOnly ) )
+    {
+        qDebug() << "SslServerManage::listen: error: can not open file:" << crtFilePath;
+        return false;
+    }
+
+    QFile fileForKey( keyFilePath );
+    if ( !fileForKey.open( QIODevice::ReadOnly ) )
+    {
+        qDebug() << "SslServerManage::listen: error: can not open file:" << keyFilePath;
+        return false;
+    }
+
+    QList< QSslCertificate > caCertificates;
+    for (int i = 0; i < caFileList.size(); i++) {
+        const QPair< QString, bool >& caFile = caFileList.at(i);
+        QFile fileForCa( caFile.first );
+        if ( !fileForCa.open( QIODevice::ReadOnly ) )
+        {
+            qDebug() << "SslServerManage::listen: error: can not open file:" << caFile.first;
+            return false;
+        }
+        caCertificates.push_back( QSslCertificate( fileForCa.readAll(), ( caFile.second ) ? ( QSsl::Pem ) : ( QSsl::Der ) ) );
+    }
+
+    QSslCertificate sslCertificate( fileForCrt.readAll(), QSsl::Pem );
+    QSslKey sslKey( fileForKey.readAll(), QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey );
+
+    QSslConfiguration sslConfiguration;
+    sslConfiguration.setPeerVerifyMode( QSslSocket::VerifyNone );
+    sslConfiguration.setLocalCertificate( sslCertificate );
+    sslConfiguration.setPrivateKey( sslKey );
+    sslConfiguration.setProtocol( QSsl::TlsV1 );
+    sslConfiguration.setCaCertificates( caCertificates );
+
+     m_tcpServer = new QSslServer(this);
+     ((QSslServer*)m_tcpServer)->setSslConfiguration(sslConfiguration);
+
+     bool couldBindToPort = m_tcpServer->listen(address, port);
+     if (couldBindToPort) {
+         connect(m_tcpServer, SIGNAL(newConnection()), this, SLOT(newConnection()));
+     } else {
+         delete m_tcpServer;
+         m_tcpServer = NULL;
+     }
+     return couldBindToPort;
 }
 
 bool QHttpServer::listen(const QHostAddress &address, quint16 port)
